@@ -2,6 +2,7 @@
 
 **Official Repository for the AAAI 2026 paper "RefineVAD"**
 
+
 This repository hosts the official implementation of:
 
 **RefineVAD: Semantic-Guided Feature Recalibration for Weakly Supervised Video Anomaly Detection**
@@ -13,14 +14,6 @@ JunHee Lee*, ChaeBeen Bang*, MyoungChul Kim*, MyeongAh Cho†
 ---
 
 ## Main Figure
-
-Place your main figure inside the `assets/` directory as:
-
-```
-assets/main_fig.png
-```
-
-Then referenced in this README as:
 
 ![RefineVAD Main Figure](assets/main_fig.png)
 

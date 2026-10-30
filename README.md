@@ -1,40 +1,56 @@
-# RefineVAD
+# RefineVAD: Semantic-Guided Feature Recalibration for Weakly Supervised Video Anomaly Detection [AAAI 2026]
 
-**RefineVAD: Semantic-Guided Feature Recalibration for Weakly Supervised Video Anomaly Detection**
+**Official implementation of the AAAI 2026 paper, _RefineVAD: Semantic-Guided Feature Recalibration for Weakly Supervised Video Anomaly Detection_.**
 
-A unified implementation for UCF-Crime and XD-Violence using pre-extracted visual and textual features. Select a JSON configuration to switch datasets; training and evaluation use shared entry points with dataset-specific behavior.
+**Junhee Lee\***, **ChaeBeen Bang\***, **MyoungChul Kim\***, **MyeongAh Cho†**
 
-## Environment
+*\* Equal contribution. † Corresponding author.*
 
-The authors confirmed exact reproduction of their reference runs on an **NVIDIA RTX A5000** with the matching features, ground truth, and dataset-specific settings. This release preserves those reference training and evaluation behaviors. Reproduction on other hardware or software versions is not a bitwise-equality guarantee.
+Kyung Hee University
 
-Use Python 3.10 and the pinned dependencies:
+[**Paper (arXiv)**](https://arxiv.org/abs/2511.13204) · [**Dataset**](https://huggingface.co/datasets/JunheeLee/RefineVAD_Dataset)
+
+## Overview
+
+RefineVAD addresses **weakly supervised video anomaly detection (WSVAD)** using video-level annotations. It combines **Motion-aware Temporal Attention and Recalibration (MoTAR)** to model temporal changes with **Category-Oriented Refinement (CORE)** to incorporate anomaly-category semantics into segment-level feature refinement.
+
+![Overview of the RefineVAD framework](assets/main_fig.png)
+
+*Figure: Overview of RefineVAD, including the MoTAR and CORE modules.*
+
+This repository contains the unified implementation for **UCF-Crime** and **XD-Violence**. Select the appropriate JSON configuration to train or evaluate either dataset using the same entry points. The dataset-specific training and inference behavior of the reference code is preserved.
+
+## 1. Environment
+
+The reference results were **successfully reproduced by the authors on an NVIDIA RTX A5000** with the matching pre-extracted features, ground truth, and dataset-specific settings. The implementation below retains this reproduction configuration. Results may vary with different data preprocessing, device, or software environments.
+
+Create a Conda environment with Python 3.10:
 
 ```bash
 conda create -n refinevad python=3.10 -y
 conda activate refinevad
 python -m pip install --upgrade pip
+```
+
+Install the PyTorch 2.4.1 CUDA 12.1 build and the remaining pinned packages:
+
+```bash
 python -m pip install torch==2.4.1 --index-url https://download.pytorch.org/whl/cu121
 python -m pip install -r requirements.txt
 python -m pip check
 ```
 
-The CUDA 12.1 wheel requires a compatible NVIDIA driver. An already installed `refinevad` environment can be reused by installing `requirements.txt`. The dependency versions are PyTorch 2.4.1, NumPy 1.26.4, SciPy 1.13.1, scikit-learn 1.5.2, pandas 2.2.3, Matplotlib 3.9.4, and natsort 8.4.0.
+CUDA 12.1 requires a compatible NVIDIA driver. To check your environment:
 
 ```bash
-python -c "import torch; print(torch.__version__); print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU')"
+python -c "import torch; print('PyTorch:', torch.__version__); print('CUDA available:', torch.cuda.is_available()); print('GPU:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'None')"
 ```
 
-CPU-only installation for smoke tests:
+The pinned dependencies are listed in [`requirements.txt`](requirements.txt), including `natsort==8.4.0`. Use an appropriately compatible PyTorch build if your system cannot run CUDA 12.1.
 
-```bash
-python -m pip install torch==2.4.1 --index-url https://download.pytorch.org/whl/cpu
-python -m pip install -r requirements.txt
-```
+## 2. Data preparation
 
-## Data preparation
-
-Download `UCF_Crime.tar.gz` and `XD_Violence.tar.gz` from the [RefineVAD dataset repository](https://huggingface.co/datasets/JunheeLee/RefineVAD_Dataset/tree/main). Extract the archives outside this source repository. For example, after downloading them into a directory of your choice:
+Download **`UCF_Crime.tar.gz`** and **`XD_Violence.tar.gz`** from the [RefineVAD dataset release](https://huggingface.co/datasets/JunheeLee/RefineVAD_Dataset/tree/main). Extract both archives to a directory **outside the Git repository**:
 
 ```bash
 DOWNLOAD_DIR="/path/to/downloads"
@@ -44,7 +60,7 @@ tar -xzf "$DOWNLOAD_DIR/UCF_Crime.tar.gz" -C "$DATA_ROOT"
 tar -xzf "$DOWNLOAD_DIR/XD_Violence.tar.gz" -C "$DATA_ROOT"
 ```
 
-The configurations retain the relative paths used by the reference code:
+The data layout expected by the released configurations is:
 
 ```text
 VAD_data/
@@ -64,177 +80,99 @@ VAD_data/
         └── TestGT_padding_xd.npy
 ```
 
-Set **only `data.base_root`** in each JSON file to the corresponding dataset directory, not its parent:
+Open the JSON file for each dataset and set **`data.base_root`** to that dataset's own folder:
 
-| Configuration | `data.base_root` example |
-| --- | --- |
-| `configs/ucf_crime.json` | `/path/to/VAD_data/UCF_Crime` |
-| `configs/xd_violence.json` | `/path/to/VAD_data/XD_Violence` |
+| Dataset | Config file | Example `data.base_root` |
+| --- | --- | --- |
+| UCF-Crime | [`configs/ucf_crime.json`](configs/ucf_crime.json) | `/path/to/VAD_data/UCF_Crime` |
+| XD-Violence | [`configs/xd_violence.json`](configs/xd_violence.json) | `/path/to/VAD_data/XD_Violence` |
 
-`data.base_root` is intentionally empty in the distributed files. Absolute paths are recommended. A relative root is resolved from the repository root. All remaining data paths are resolved beneath that root; no environment variable is required.
+The distributed configurations intentionally leave `data.base_root` empty. All relative paths under the dataset root retain their original values; **do not change them unless your dataset structure differs**. Before publishing modifications, clear any machine-specific absolute paths from the tracked JSON files.
 
-Both datasets use `ViT14L` for visual **and** textual features, as selected by the reference shell scripts. Training features must be nonempty two-dimensional `[segments, channels]` NumPy arrays. XD CSV files must contain `path` and `label` columns. Paths inside those CSV files are reduced to their basenames. `A` denotes a normal video; anomaly codes are `B1`, `B2`, `B4`, `B5`, `B6`, and `G`. Labels such as `B2-0-0` and `B1-B2-0` are supported.
+**Important for XD-Violence:** Use the `TestGT_padding_xd.npy` file corresponding to the released `ViT14L` features and the test CSV order. The evaluator does not add, drop, or trim segments to force GT alignment. XD training/test CSVs require `path` and `label` columns; category labels such as `B2-0-0` are supported.
 
-The XD ground-truth filename is intentionally **`list/TestGT_padding_xd.npy`**, not `list/test_gt.npy`. Use the ground truth belonging to these exact feature sequences and test-video order. The code does not rename files, add labels, or remove first/last segments to make lengths match. Do not substitute a different GT merely because its filename is similar.
+## 3. Training
 
-Validate the configured data before training:
+Run commands from the repository root. **Saving checkpoints and creating visualizations are disabled by default.** All hyperparameters and the dataset selection are specified in the JSON configuration.
 
-```bash
-python scripts/check_data.py --config configs/ucf_crime.json
-python scripts/check_data.py --config configs/xd_violence.json
-```
-
-For an evaluation-only dataset installation:
-
-```bash
-python scripts/check_data.py --config configs/xd_violence.json --test-only
-```
-
-## Training
-
-Run from the repository root. Both datasets use the same script:
+Train on UCF-Crime:
 
 ```bash
 bash train.sh --config configs/ucf_crime.json --device cuda
+```
+
+Train on XD-Violence:
+
+```bash
 bash train.sh --config configs/xd_violence.json --device cuda
 ```
 
-The default configuration is UCF-Crime. **Checkpoint saving and visualization are both disabled by default.** Per-epoch losses and validation metrics are printed directly to the terminal. Hyperparameters live in the JSON files rather than shell variables.
-
-Save the best checkpoint:
+To **save the best checkpoint**, add `--save-model` and a result folder:
 
 ```bash
 bash train.sh --config configs/ucf_crime.json --device cuda \
-    --save-model --result-folder ucf_reference
+  --save-model --result-folder ucf_run
 
 bash train.sh --config configs/xd_violence.json --device cuda \
-    --save-model --result-folder xd_reference
+  --save-model --result-folder xd_run
 ```
 
-Save the checkpoint and plot the best model's frame-level predictions:
+To also export the best model's per-video prediction plots, add `--visualize`:
 
 ```bash
 bash train.sh --config configs/xd_violence.json --device cuda \
-    --save-model --visualize --result-folder xd_reference
+  --save-model --visualize --result-folder xd_run
 ```
 
-`--visualize` can also be used without `--save-model`: the best weights are kept in memory for plotting, but no checkpoint is written. Visualization runs only after training, not after every epoch.
+`--visualize` can also be enabled without `--save-model`. Checkpoints are written only when `--save-model` is provided. Result directories are created under `results/` (UCF-Crime) or `results_xd/` (XD-Violence), and contain `best_model.pth`, `best_metrics.json`, `history.json`, and `resolved_config.json` when saving is enabled. Visualization images are written under `visualizations/` when requested. Without either option, only console metrics are produced.
 
-| Runtime argument | Default | Purpose |
+| Argument | Default | Description |
 | --- | --- | --- |
-| `--config` | `configs/ucf_crime.json` | Dataset and hyperparameter configuration |
-| `--device` | `auto` | `cuda`, `cuda:0`, `cpu`, or automatic selection |
-| `--save-model` | Off | Save the best model state dictionary |
-| `--visualize` | Off | Plot the best model after training |
-| `--result-folder` | `default` | Name beneath `results/` or `results_xd/` |
-| `--output-dir` | Unset | Explicit output directory, overriding the result folder |
+| `--config` | `configs/ucf_crime.json` | Dataset, model, and training settings |
+| `--device` | `auto` | `cuda`, `cuda:0`, `cpu`, or `auto` |
+| `--save-model` | Off | Save the best checkpoint |
+| `--visualize` | Off | Save per-video prediction plots after training |
+| `--result-folder` | `default` | Folder name under the dataset's result directory |
+| `--output-dir` | Unset | Override the output directory |
 
-Underscore aliases `--save_model` and `--result_folder`, and `--plot` for `--visualize`, are also accepted. There is no training `--test_only` option. `PYTHON=/path/to/python bash train.sh ...` selects an explicit interpreter.
+## 4. Evaluation only
 
-When saving is enabled, outputs include:
+`test.py` and `test.sh` **only load a checkpoint and evaluate the test split**. They do not create training datasets or update model weights.
 
-```text
-results/ucf_reference/          or results_xd/xd_reference/
-├── best_model.pth
-├── best_metrics.json
-├── history.json
-├── resolved_config.json
-└── visualizations/            only with --visualize
-```
-
-With neither saving nor visualization enabled, training writes no result files. Use a new result folder for each experiment to avoid overwriting a previous run. Validation uses the supplied benchmark test split after every epoch, matching the reference model-selection protocol.
-
-## Evaluation only
-
-`test.py` is separate from training and never constructs a training dataset or optimizer. Supply a checkpoint explicitly:
+Evaluate UCF-Crime:
 
 ```bash
 bash test.sh --config configs/ucf_crime.json --device cuda \
-    --checkpoint results/ucf_reference/best_model.pth
-
-bash test.sh --config configs/xd_violence.json --device cuda \
-    --checkpoint results_xd/xd_reference/best_model.pth
+  --checkpoint results/ucf_run/best_model.pth
 ```
 
-To save metrics and visualizations:
+Evaluate XD-Violence:
 
 ```bash
 bash test.sh --config configs/xd_violence.json --device cuda \
-    --checkpoint results_xd/xd_reference/best_model.pth \
-    --visualize --output-dir results_xd/xd_reference/evaluation
+  --checkpoint results_xd/xd_run/best_model.pth
 ```
 
-Without `--visualize` or `--output-dir`, evaluation only prints metrics. `--output-dir` alone writes `test_metrics.json`. Visualization normalizes scores only for display; AUC/AP use the original, unnormalized frame scores. The model state-dictionary keys are unchanged from the reference `CAM_GATSM_NL`, so its plain state-dictionary checkpoints can be loaded with a matching configuration and feature dimension.
-
-## Reference configurations
-
-| Setting | UCF-Crime | XD-Violence |
-| --- | ---: | ---: |
-| Batch size | 64 | 64 |
-| Learning rate | 0.00069 | 0.0032 |
-| Maximum epochs | 30 | 30 |
-| Random seed | 42 | 42 |
-| Weight decay | 0.0001 | 0.0001 |
-| Sampled segments | 32 | 32 |
-| Projection dimension | 467 | 461 |
-| Category embedding dimension | 80 | 176 |
-| Top-k | 7 | 7 |
-| Fold division | 4 | 3 |
-| Smoothness coefficient | 0.0005 | 0.0005 |
-| Sparsity coefficient | 0.009 | 0.005 |
-| Category loss coefficient | 0.22 | 0.21 |
-| GMM coefficient | 0.35 | 0.1 |
-| Consistency coefficient | 0.0021 | 0.0001 |
-| Category positive weight | 10 | 5 |
-| Checkpoint selection | AUC | AP |
-| Early-stopping patience | 5 | 5 |
-
-The XD GMM and consistency coefficients are retained for the reported auxiliary loss; that loss is **not added to XD's optimization objective**, matching the reference trainer.
-
-### Dataset-specific behavior
-
-| Component | UCF-Crime | XD-Violence |
-| --- | --- | --- |
-| Training batches | Independently shuffled normal/anomaly loaders, combined with `zip` | Filename-sorted normal/anomaly pairs, followed by one shuffled loader |
-| Category supervision | Single-label anomaly cross-entropy | Multi-label anomaly BCE |
-| Total loss | MIL + weighted category + GMM | MIL + weighted category |
-| LR schedule | OneCycleLR | Linear warmup from `1e-6`, then CosineAnnealingWarmRestarts |
-| Scheduler step budget | Anomaly-loader length × maximum epochs | Paired-loader length × maximum epochs |
-| Test ordering | `natsorted` UCF names | Original CSV row order |
-| Reported metrics | AUC, AP, anomaly-only AUC | AUC, AP |
-
-Both paths resample training videos using uniform temporal interval means. Both evaluate all test segments using raw model scores, repeat each segment score 16 times, and apply Gaussian smoothing with sigma 2 separately to each video. There is no sigmoid before evaluation metrics and no segment trimming.
-
-### Implementation behavior retained for reproduction
-
-The reference trainers call `model.train()` once before the epoch loop. Validation switches the model to `eval()` and does not restore training mode afterward. Consequently, subsequent optimizer updates run with evaluation-mode Dropout/BatchNorm and without the training-only category-GT embedding addition. This behavior is deliberately retained, not silently corrected.
-
-The temporal Transformer is created during the first training forward pass, **after** optimizer construction and the initial Linear-layer initialization pass. It is therefore absent from that optimizer's parameter groups, although it is present in saved model state dictionaries. The hard integer shift selection also does not propagate gradients to its shift predictor. These reference implementation properties remain unchanged. Evaluation constructs the temporal module before loading a checkpoint.
-
-The initial DataLoader probe used to infer the input dimension is preserved because it advances the random-number state before model initialization. For UCF, the normal and anomaly loader lengths may differ; the epoch stops at the shorter loader while the original scheduler budget uses the anomaly loader. Do not alter these behaviors when comparing against the reference runs.
-
-## Validation utilities
-
-Run the synthetic integration test without downloading a dataset:
+To export evaluation metrics and plots:
 
 ```bash
-python tests/smoke_test.py
+bash test.sh --config configs/xd_violence.json --device cuda \
+  --checkpoint results_xd/xd_run/best_model.pth \
+  --visualize --output-dir results_xd/xd_run/evaluation
 ```
 
-This tests both datasets, training, checkpoint reload, visualization, and evaluation after the training list has been removed. It uses reduced synthetic dimensions and is not a benchmark-performance test.
+Without `--visualize` or `--output-dir`, evaluation prints the metrics without creating files. `--output-dir` alone exports `test_metrics.json`. Model state-dictionary keys remain compatible with the reference `CAM_GATSM_NL` checkpoint format when the model configuration and input dimensions match.
 
-To compare against an unpacked copy of the original reference sources:
+## 5. Reproduction settings
 
-```bash
-python tests/compare_original.py --original-dir /path/to/original/source
-```
+The default configurations in [`configs/ucf_crime.json`](configs/ucf_crime.json) and [`configs/xd_violence.json`](configs/xd_violence.json) contain the hyperparameter settings used to obtain the results reported in the AAAI 2026 paper. For reproduction, use the corresponding configuration without changing its hyperparameters, and set only `data.base_root` to your dataset location.
 
-This optional test runs the original and refactored trainers on the same small CPU fixtures. It compares the full model-state SHA-256 after every optimizer step, optimizer parameter membership, learning rates, epoch metrics, and the best checkpoint. Worker count and pin-memory settings are controlled for the CPU test; production JSON files retain six workers and pinned memory. The original source files are not required for normal training or evaluation.
-
-## Repository layout
+## 6. Repository structure
 
 ```text
 RefineVAD/
+├── assets/
+│   └── main_fig.png
 ├── configs/
 │   ├── ucf_crime.json
 │   └── xd_violence.json
@@ -242,10 +180,6 @@ RefineVAD/
 │   ├── __init__.py
 │   ├── refinevad.py
 │   └── temporal.py
-├── scripts/check_data.py
-├── tests/
-│   ├── smoke_test.py
-│   └── compare_original.py
 ├── data.py
 ├── evaluate.py
 ├── losses.py
@@ -255,7 +189,23 @@ RefineVAD/
 ├── train.sh
 ├── test.sh
 ├── requirements.txt
-└── README.md
+├── README.md
+└── .gitignore
 ```
 
-Only the reference `_NL` architecture is retained and is exported as `RefineVAD`. Dataset-specific Python config files, alternative model variants, cluster-specific job directives, and ad-hoc single-video CSV exports are not part of this release.
+## Citation
+
+If you use this code, please cite:
+
+```bibtex
+@inproceedings{lee2026refinevad,
+  title={RefineVAD: Semantic-Guided Feature Recalibration for Weakly Supervised Video Anomaly Detection},
+  author={Lee, Junhee and Bang, ChaeBeen and Kim, MyoungChul and Cho, MyeongAh},
+  booktitle={Proceedings of the AAAI Conference on Artificial Intelligence},
+  volume={40},
+  number={7},
+  pages={5899--5907},
+  year={2026},
+  doi={10.1609/aaai.v40i7.37512}
+}
+```

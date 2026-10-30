@@ -1,0 +1,56 @@
+{
+  "dataset": "xd_violence",
+  "data": {
+    "base_root": "",
+    "visual_root": "visual",
+    "text_root": "textual",
+    "visual_backbone": "ViT14L",
+    "text_backbone": "ViT14L",
+    "train_list": "list/train_list.csv",
+    "test_list": "list/test_list.csv",
+    "gt_path": "list/test_gt.npy",
+    "num_segments_per_video": 32,
+    "num_categories": 6
+  },
+  "model": {
+    "name": "RefineVAD",
+    "proj_embedding": 461,
+    "d_emb": 176,
+    "topk": 7,
+    "fold_div": 3
+  },
+  "training": {
+    "batch_size": 64,
+    "lr": 0.0032,
+    "max_epoch": 30,
+    "random_seed": 42,
+    "weight_decay": 0.0001,
+    "num_workers": 6,
+    "pin_memory": true,
+    "patience": 5,
+    "primary_metric": "ap"
+  },
+  "loss": {
+    "lambda_1": 0.0005,
+    "lambda_2": 0.005,
+    "lambda_category": 0.21,
+    "lambda_gmm": 0.1,
+    "lambda_reg": 0.0001,
+    "category_positive_weight": 5.0,
+    "lambda_mutual": 0.1,
+    "category_margin": 1.0,
+    "lambda_category_margin": 0.2,
+    "lambda_anomaly_classification": 0.4
+  },
+  "scheduler": {
+    "name": "linear_warmup_cosine_restarts",
+    "warmup_fraction": 0.1,
+    "initial_lr": 1e-06,
+    "eta_min": 1e-06,
+    "t_mult": 1
+  },
+  "evaluation": {
+    "frames_per_segment": 16,
+    "smoothing_sigma": 2.0
+  }
+}

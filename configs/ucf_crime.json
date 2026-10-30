@@ -1,0 +1,56 @@
+{
+  "dataset": "ucf_crime",
+  "data": {
+    "base_root": "",
+    "visual_root": "visual",
+    "text_root": "textual",
+    "visual_backbone": "ViT14L",
+    "text_backbone": "ViT14L",
+    "train_list": "list/train_list.txt",
+    "test_list": "list/test_list.txt",
+    "gt_path": "list/test_gt.npy",
+    "num_segments_per_video": 32,
+    "num_categories": 13
+  },
+  "model": {
+    "name": "RefineVAD",
+    "proj_embedding": 467,
+    "d_emb": 80,
+    "topk": 7,
+    "fold_div": 4
+  },
+  "training": {
+    "batch_size": 64,
+    "lr": 0.00069,
+    "max_epoch": 30,
+    "random_seed": 42,
+    "weight_decay": 0.0001,
+    "num_workers": 6,
+    "pin_memory": true,
+    "patience": 5,
+    "primary_metric": "auc"
+  },
+  "loss": {
+    "lambda_1": 0.0005,
+    "lambda_2": 0.009,
+    "lambda_category": 0.22,
+    "lambda_gmm": 0.35,
+    "lambda_reg": 0.0021,
+    "category_positive_weight": 10.0,
+    "lambda_mutual": 0.1,
+    "category_margin": 1.0,
+    "lambda_category_margin": 0.2,
+    "lambda_anomaly_classification": 0.4
+  },
+  "scheduler": {
+    "name": "one_cycle",
+    "pct_start": 0.1,
+    "anneal_strategy": "cos",
+    "div_factor": 25.0,
+    "final_div_factor": 10000.0
+  },
+  "evaluation": {
+    "frames_per_segment": 16,
+    "smoothing_sigma": 2.0
+  }
+}

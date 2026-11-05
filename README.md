@@ -8,7 +8,9 @@
 
 Kyung Hee University
 
-[**Paper (arXiv)**](https://arxiv.org/abs/2511.13204) · [**Dataset**](https://huggingface.co/datasets/JunheeLee/RefineVAD_Dataset)
+[![arXiv](https://img.shields.io/badge/arXiv-2511.13204-b31b1b.svg?style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2511.13204)
+[![Project Page](https://img.shields.io/badge/Project-Page-2563eb.svg?style=flat-square&logo=googlechrome&logoColor=white)](https://visualsciencelab-khu.github.io/RefineVAD_project/)
+[![Dataset](https://img.shields.io/badge/Dataset-Hugging%20Face-FFD21E.svg?style=flat-square&logo=huggingface&logoColor=black)](https://huggingface.co/datasets/JunheeLee/RefineVAD_Dataset)
 
 ## Overview
 
